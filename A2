@@ -1,0 +1,372 @@
+# Create project files: index.html and README.md, then zip them for download.
+
+import os, textwrap, zipfile, json, pathlib
+
+project_dir = "/mnt/data/gestao-mei-facil"
+os.makedirs(project_dir, exist_ok=True)
+
+index_html = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestão MEI Fácil</title>
+  <meta name="description" content="Aplicação web simples para apoio à gestão financeira e fiscal de MEIs." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Melhorias de foco para acessibilidade */
+    :focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-amber-50 to-amber-100 text-stone-800">
+  <!-- Cabeçalho -->
+  <header class="sticky top-0 bg-white/80 backdrop-blur border-b border-amber-200 z-10" role="banner">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="#inicio" class="flex items-center gap-2 font-extrabold text-lg sm:text-xl">
+        <span aria-hidden="true">☕</span>
+        <span>Gestão MEI Fácil</span>
+      </a>
+      <nav aria-label="Navegação principal">
+        <ul class="flex gap-2 sm:gap-4 text-sm sm:text-base">
+          <li><a class="px-3 py-2 rounded-lg hover:bg-amber-100" href="#sobre">Sobre</a></li>
+          <li><a class="px-3 py-2 rounded-lg hover:bg-amber-100" href="#app">Aplicação</a></li>
+          <li><a class="px-3 py-2 rounded-lg hover:bg-amber-100" href="#contato">Contato</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="inicio" class="max-w-6xl mx-auto px-4">
+    <!-- Hero -->
+    <section class="grid md:grid-cols-2 gap-8 items-center py-10 sm:py-16" id="sobre">
+      <div>
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-amber-900">
+          Apoio à Gestão Financeira e Fiscal de MEIs
+        </h1>
+        <p class="mt-4 leading-relaxed">
+          Uma aplicação web simples e responsiva para registrar <strong>receitas</strong> e <strong>despesas</strong>,
+          visualizar o <strong>saldo</strong> e organizar suas obrigações básicas de forma intuitiva.
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a href="#app"
+             class="inline-flex items-center justify-center rounded-2xl bg-amber-700 px-5 py-3 text-white font-semibold shadow hover:bg-amber-800 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700">
+            Acessar Sistema
+          </a>
+          <a href="https://github.com/SEU_USUARIO/gestao-mei-facil" target="_blank" rel="noreferrer noopener"
+             class="inline-flex items-center justify-center rounded-2xl border border-amber-700 px-5 py-3 font-semibold hover:bg-amber-100 transition">
+            Ver no GitHub
+          </a>
+        </div>
+        <p class="mt-3 text-xs text-stone-600">
+          *Este protótipo usa armazenamento local do navegador (localStorage). Não requer backend.
+        </p>
+      </div>
+      <figure class="order-first md:order-last">
+        <img
+          src="https://images.unsplash.com/photo-1553729784-e91953dec042?auto=format&fit=crop&w=1100&q=80"
+          alt="Microempreendedor usando notebook e uma xícara de café ao lado"
+          class="w-full h-64 sm:h-80 object-cover rounded-3xl shadow-lg border border-amber-200">
+        <figcaption class="sr-only">Interface voltada a MEIs, responsiva e simples.</figcaption>
+      </figure>
+    </section>
+
+    <!-- Aplicação -->
+    <section id="app" aria-labelledby="titulo-app" class="py-8 sm:py-12">
+      <div class="mb-6">
+        <h2 id="titulo-app" class="text-2xl sm:text-3xl font-extrabold text-amber-900">Aplicação</h2>
+        <p class="text-stone-700 mt-1">Registre receitas e despesas. Os dados ficam salvos no seu navegador.</p>
+      </div>
+
+      <!-- Cards de Resumo -->
+      <div class="grid sm:grid-cols-3 gap-4 mb-6">
+        <div class="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
+          <h3 class="font-semibold">Receitas</h3>
+          <p id="valor-receitas" class="mt-1 text-2xl font-black">R$ 0,00</p>
+        </div>
+        <div class="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
+          <h3 class="font-semibold">Despesas</h3>
+          <p id="valor-despesas" class="mt-1 text-2xl font-black">R$ 0,00</p>
+        </div>
+        <div class="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
+          <h3 class="font-semibold">Saldo</h3>
+          <p id="valor-saldo" class="mt-1 text-2xl font-black">R$ 0,00</p>
+        </div>
+      </div>
+
+      <!-- Abas -->
+      <div class="rounded-2xl border border-amber-200 bg-white shadow-sm">
+        <div class="flex flex-wrap gap-2 border-b border-amber-100 p-2" role="tablist" aria-label="Abas de lançamentos">
+          <button id="tab-receitas" role="tab" aria-selected="true" aria-controls="panel-receitas"
+            class="tab-btn px-4 py-2 rounded-xl font-semibold bg-amber-700 text-white focus-visible:outline-none">
+            Receitas
+          </button>
+          <button id="tab-despesas" role="tab" aria-selected="false" aria-controls="panel-despesas"
+            class="tab-btn px-4 py-2 rounded-xl font-semibold hover:bg-amber-50 focus-visible:outline-none">
+            Despesas
+          </button>
+        </div>
+
+        <!-- Painel Receitas -->
+        <div id="panel-receitas" role="tabpanel" aria-labelledby="tab-receitas" class="p-4">
+          <form id="form-receita" class="grid md:grid-cols-4 gap-3 items-end" novalidate>
+            <label class="block">
+              <span class="text-sm font-medium">Data</span>
+              <input type="date" required class="mt-1 w-full rounded-xl border-stone-300 focus:border-amber-600 focus:ring-amber-600" />
+            </label>
+            <label class="block md:col-span-2">
+              <span class="text-sm font-medium">Descrição</span>
+              <input type="text" placeholder="Venda de produto" required class="mt-1 w-full rounded-xl border-stone-300 focus:border-amber-600 focus:ring-amber-600" />
+            </label>
+            <label class="block">
+              <span class="text-sm font-medium">Valor (R$)</span>
+              <input type="number" min="0" step="0.01" placeholder="0,00" required class="mt-1 w-full rounded-xl border-stone-300 focus:border-amber-600 focus:ring-amber-600" />
+            </label>
+            <button type="submit" class="md:col-span-4 inline-flex justify-center rounded-2xl bg-emerald-700 px-5 py-3 text-white font-semibold shadow hover:bg-emerald-800 transition">
+              Adicionar Receita
+            </button>
+          </form>
+
+          <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="text-left border-b">
+                  <th class="py-2 pr-4">Data</th>
+                  <th class="py-2 pr-4">Descrição</th>
+                  <th class="py-2 pr-4">Valor</th>
+                  <th class="py-2"></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-receitas"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Painel Despesas -->
+        <div id="panel-despesas" role="tabpanel" aria-labelledby="tab-despesas" class="p-4 hidden">
+          <form id="form-despesa" class="grid md:grid-cols-4 gap-3 items-end" novalidate>
+            <label class="block">
+              <span class="text-sm font-medium">Data</span>
+              <input type="date" required class="mt-1 w-full rounded-xl border-stone-300 focus:border-amber-600 focus:ring-amber-600" />
+            </label>
+            <label class="block md:col-span-2">
+              <span class="text-sm font-medium">Descrição</span>
+              <input type="text" placeholder="Compra de insumos" required class="mt-1 w-full rounded-xl border-stone-300 focus:border-amber-600 focus:ring-amber-600" />
+            </label>
+            <label class="block">
+              <span class="text-sm font-medium">Valor (R$)</span>
+              <input type="number" min="0" step="0.01" placeholder="0,00" required class="mt-1 w-full rounded-xl border-stone-300 focus:border-amber-600 focus:ring-amber-600" />
+            </label>
+            <button type="submit" class="md:col-span-4 inline-flex justify-center rounded-2xl bg-rose-700 px-5 py-3 text-white font-semibold shadow hover:bg-rose-800 transition">
+              Adicionar Despesa
+            </button>
+          </form>
+
+          <div class="mt-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="text-left border-b">
+                  <th class="py-2 pr-4">Data</th>
+                  <th class="py-2 pr-4">Descrição</th>
+                  <th class="py-2 pr-4">Valor</th>
+                  <th class="py-2"></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-despesas"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contato / Rodapé -->
+    <section id="contato" class="py-10">
+      <div class="rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
+        <h2 class="text-xl font-extrabold text-amber-900">Contato</h2>
+        <p class="mt-1 text-sm text-stone-700">
+          Este é um protótipo acadêmico. Para dúvidas sobre o projeto, liste seus contatos institucionais aqui.
+        </p>
+        <ul class="mt-3 text-sm">
+          <li><strong>E-mail:</strong> portalgestaomei@ufms.br</li>
+          <li><strong>Telefone:</strong> 3355-4466</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-amber-200 bg-white">
+    <div class="max-w-6xl mx-auto px-4 py-6 text-sm text-stone-600">
+      © 2025 Gestão MEI Fácil — Protótipo acadêmico (MIT).
+    </div>
+  </footer>
+
+  <template id="row-template">
+    <tr class="border-b last:border-0">
+      <td class="py-2 pr-4 whitespace-nowrap"></td>
+      <td class="py-2 pr-4"></td>
+      <td class="py-2 pr-4 font-semibold"></td>
+      <td class="py-2">
+        <button type="button" class="remover inline-flex items-center rounded-lg border px-3 py-1 text-xs hover:bg-amber-50">
+          Remover
+        </button>
+      </td>
+    </tr>
+  </template>
+
+  <script>
+  // Utilidades
+  const moeda = (n) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const byId = (id) => document.getElementById(id);
+
+  // Estado (localStorage)
+  const STORAGE_KEY = 'gestao-mei-facil:v1';
+  const state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"receitas":[],"despesas":[]}');
+  const salvar = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+  // Elementos
+  const valorReceitas = byId('valor-receitas');
+  const valorDespesas = byId('valor-despesas');
+  const valorSaldo = byId('valor-saldo');
+
+  const tbodyReceitas = byId('tbody-receitas');
+  const tbodyDespesas = byId('tbody-despesas');
+
+  // Abas acessíveis
+  const tabReceitas = byId('tab-receitas');
+  const tabDespesas = byId('tab-despesas');
+  const panelReceitas = byId('panel-receitas');
+  const panelDespesas = byId('panel-despesas');
+
+  function selecionarAba(aba) {
+    const isReceitas = aba === 'receitas';
+    tabReceitas.setAttribute('aria-selected', isReceitas);
+    tabDespesas.setAttribute('aria-selected', !isReceitas);
+    panelReceitas.classList.toggle('hidden', !isReceitas);
+    panelDespesas.classList.toggle('hidden', isReceitas);
+
+    tabReceitas.classList.toggle('bg-amber-700', isReceitas);
+    tabReceitas.classList.toggle('text-white', isReceitas);
+    tabDespesas.classList.toggle('bg-amber-700', !isReceitas);
+    tabDespesas.classList.toggle('text-white', !isReceitas);
+  }
+
+  tabReceitas.addEventListener('click', () => selecionarAba('receitas'));
+  tabDespesas.addEventListener('click', () => selecionarAba('despesas'));
+  tabReceitas.addEventListener('keyup', (e) => { if (e.key === 'ArrowRight') selecionarAba('despesas'); });
+  tabDespesas.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft') selecionarAba('receitas'); });
+
+  // Renderização
+  function render() {
+    // Totais
+    const totalReceitas = state.receitas.reduce((acc, it) => acc + it.valor, 0);
+    const totalDespesas = state.despesas.reduce((acc, it) => acc + it.valor, 0);
+    const saldo = totalReceitas - totalDespesas;
+
+    valorReceitas.textContent = moeda(totalReceitas);
+    valorDespesas.textContent = moeda(totalDespesas);
+    valorSaldo.textContent = moeda(saldo);
+
+    // Tabelas
+    const tpl = document.getElementById('row-template');
+
+    tbodyReceitas.innerHTML = '';
+    state.receitas
+      .sort((a,b) => a.data.localeCompare(b.data))
+      .forEach((it, idx) => {
+        const row = tpl.content.cloneNode(true);
+        const tds = row.querySelectorAll('td');
+        tds[0].textContent = it.data;
+        tds[1].textContent = it.desc;
+        tds[2].textContent = moeda(it.valor);
+        const btn = row.querySelector('button.remover');
+        btn.setAttribute('aria-label', 'Remover receita ' + it.desc);
+        btn.addEventListener('click', () => { state.receitas.splice(idx,1); salvar(); render(); });
+        tbodyReceitas.appendChild(row);
+      });
+
+    tbodyDespesas.innerHTML = '';
+    state.despesas
+      .sort((a,b) => a.data.localeCompare(b.data))
+      .forEach((it, idx) => {
+        const row = tpl.content.cloneNode(true);
+        const tds = row.querySelectorAll('td');
+        tds[0].textContent = it.data;
+        tds[1].textContent = it.desc;
+        tds[2].textContent = moeda(it.valor);
+        const btn = row.querySelector('button.remover');
+        btn.setAttribute('aria-label', 'Remover despesa ' + it.desc);
+        btn.addEventListener('click', () => { state.despesas.splice(idx,1); salvar(); render(); });
+        tbodyDespesas.appendChild(row);
+      });
+  }
+
+  // Formulários
+  function getValores(form) {
+    const [dataInput, descInput, valorInput] = form.querySelectorAll('input');
+    const data = dataInput.value;
+    const desc = descInput.value.trim();
+    const valor = parseFloat(valorInput.value.replace(',', '.'));
+    return { data, desc, valor, dataInput, descInput, valorInput };
+  }
+
+  function validar({ data, desc, valor }) {
+    const erros = [];
+    if (!data) erros.push('Informe a data.');
+    if (!desc) erros.push('Informe a descrição.');
+    if (!Number.isFinite(valor) || valor < 0) erros.push('Informe um valor válido (>= 0).');
+    return erros;
+  }
+
+  byId('form-receita').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = getValores(e.currentTarget);
+    const erros = validar(v);
+    if (erros.length) { alert(erros.join('\\n')); return; }
+    state.receitas.push({ data: v.data, desc: v.desc, valor: v.valor });
+    salvar(); render();
+    v.dataInput.value = ''; v.descInput.value = ''; v.valorInput.value = '';
+    v.dataInput.focus();
+  });
+
+  byId('form-despesa').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = getValores(e.currentTarget);
+    const erros = validar(v);
+    if (erros.length) { alert(erros.join('\\n')); return; }
+    state.despesas.push({ data: v.data, desc: v.desc, valor: v.valor });
+    salvar(); render();
+    v.dataInput.value = ''; v.descInput.value = ''; v.valorInput.value = '';
+    v.dataInput.focus();
+  });
+
+  // Inicialização
+  selecionarAba('receitas');
+  render();
+  </script>
+</body>
+</html>
+"""
+
+readme_md = """# Gestão MEI Fácil ☕💼
+
+Aplicação web desenvolvida como parte do projeto **APOIO À GESTÃO FINANCEIRA E FISCAL DE MEIs POR MEIO DE SOLUÇÃO TECNOLÓGICA**.  
+O objetivo é apoiar microempreendedores individuais (MEIs) no controle de receitas, despesas e obrigações fiscais, por meio de uma interface simples, acessível e responsiva.
+
+---
+
+## 🚀 Tecnologias utilizadas
+- **HTML5** → Estrutura semântica e acessível.
+- **Tailwind CSS** → Estilização responsiva e moderna.
+- **JavaScript (básico)** → Dinamismo e interatividade.
+- **GitHub** → Controle de versão e colaboração.
+
+---
+
+## 📌 Funcionalidades
+- Tela inicial responsiva com cabeçalho, descrição e botão de ação.
+- Registro de **receitas** e **despesas** com armazenamento no **localStorage**.
+- Cálculo automático de **totais** e **saldo**.
+- Layout adaptado para **desktop, tablet e mobile**.
+
+---
+
+## 📂 Estrutura do projeto
